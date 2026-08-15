@@ -11,9 +11,15 @@ export class MiniCartPanel {
 
     readonly cartCount = this.page.locator('#nav-cart-count');
 
-    readonly confirmationHeading = this.page.locator('#NATC_SMART_WAGON_CONF_MSG_SUCCESS');
-    readonly productImage = this.page.locator('#add-to-cart-confirmation-image img');
-    readonly subtotal = this.page.locator('#sw-subtotal .a-price .a-offscreen');
+    private readonly ewcPanelItem = this.page.locator('#ewc-content [data-asin]').first();
+    private readonly ewcProductImage = this.ewcPanelItem
+        .locator('img.sc-product-image:not(.ewc-sfl-image-small)')
+        .first();
+    private readonly ewcProductPrice = this.ewcPanelItem.locator('.ewc-unit-price, .sc-product-price').first();
+
+    private readonly legacyConfirmationHeading = this.page.locator('#NATC_SMART_WAGON_CONF_MSG_SUCCESS');
+    private readonly legacyProductImage = this.page.locator('#add-to-cart-confirmation-image img');
+    private readonly legacySubtotal = this.page.locator('#sw-subtotal .a-price .a-offscreen');
 
     async getCartCount(): Promise<number> {
         // The nav cart badge updates asynchronously after "Add to cart" is clicked,
@@ -34,15 +40,25 @@ export class MiniCartPanel {
     }
 
     async getPanelProduct(): Promise<MiniCartProduct> {
-        await this.confirmationHeading.waitFor({ state: 'visible', timeout: 5000 });
+        await this.ewcPanelItem.or(this.legacyConfirmationHeading).first().waitFor({ state: 'visible', timeout: 8000 });
 
-        const title = await this.productImage.getAttribute('alt', { timeout: 5000 });
+        const isEwcPanelVisible = await this.ewcPanelItem.isVisible();
+        const productImage = isEwcPanelVisible ? this.ewcProductImage : this.legacyProductImage;
+        const productPrice = isEwcPanelVisible ? this.ewcProductPrice : this.legacySubtotal;
 
-        const priceText = await this.subtotal.textContent({ timeout: 5000 });
-        const price = parsePrice(priceText!);
+        const title = await productImage.getAttribute('alt', { timeout: 5000 });
+        if (!title?.trim()) {
+            throw new Error('Mini-cart panel product title is missing');
+        }
+
+        const priceText = await productPrice.textContent({ timeout: 5000 });
+        const price = parsePrice(priceText ?? '');
+        if (!Number.isFinite(price)) {
+            throw new Error(`Mini-cart panel product price is invalid: ${priceText}`);
+        }
 
         return {
-            title: title!.trim(),
+            title: title.trim(),
             price,
         };
     }

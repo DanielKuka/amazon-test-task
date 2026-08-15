@@ -189,6 +189,9 @@ export class SearchResultPage extends BasePage {
             notConfigurableIndex++;
             if (notConfigurableIndex === 2) {
                 const product = await this.getTitleAndPrice(card);
+                // The country-redirect overlay can appear after the search results have
+                // already loaded and otherwise intercept the Add to cart click.
+                await this.removeIfPresent('#redir-modal, #redir-overlay');
                 await addToCartButton.click({ timeout: 5000 });
                 return product;
             }

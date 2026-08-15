@@ -128,6 +128,7 @@ doesn't require selecting options first) to the cart, and asserts:
 - the cart page subtotal equals the added product's price.
 
 The confirmation panel doesn't reliably render on every run on the live site
-(observed directly across repeated runs); when it doesn't appear in time, the
-same title/price data is read from the cart page instead, which has proven
-reliable across many repeated executions.
+with the same markup. The page object supports Amazon's current EWC side-cart
+panel as well as the older NATC/Smart Wagon confirmation layout. The test reads
+the title and price directly from whichever right-side panel Amazon renders; it
+does not substitute cart-page data for the panel assertion.
