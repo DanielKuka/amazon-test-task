@@ -1,0 +1,19 @@
+{
+    "name": "test-task-amazon",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "test": "playwright test",
+        "test:chromium": "playwright test --project=chromium",
+        "format": "prettier --write ."
+    },
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "devDependencies": {
+        "@playwright/test": "^1.61.1",
+        "@types/node": "^26.2.0",
+        "prettier": "^3.9.6",
+        "typescript": "^7.0.2"
+    }
+}
