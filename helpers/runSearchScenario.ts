@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Page, expect, test } from '@playwright/test';
 import { calculatePriceLimits } from '../utils/calculatePriceLimits';
 import { filterAndSortProducts } from '../utils/filterAndSortProducts';
 import { AmazonWebSite } from '../pages';
@@ -32,19 +32,28 @@ export async function runSearchScenario(page: Page, query: string) {
     let cheaperCount = 0;
     let expensiveCount = 0;
 
-    for (const product of top10) {
-        if (product.price <= lowerLimit) {
-            cheaperCount++;
-        }
-        if (product.price >= upperLimit) {
-            expensiveCount++;
-        }
-        expect
-            .soft(product.price, `${product.title} price ${product.price} should be within limits`)
-            .toBeGreaterThan(lowerLimit);
-        expect
-            .soft(product.price, `${product.title} price ${product.price} should be within limits`)
-            .toBeLessThan(upperLimit);
+    for (const [index, product] of top10.entries()) {
+        await test.step(`Validate product ${index + 1}: ${product.title}`, async () => {
+            try {
+                if (product.price <= lowerLimit) {
+                    cheaperCount++;
+                }
+                if (product.price >= upperLimit) {
+                    expensiveCount++;
+                }
+                expect
+                    .soft(product.price, `${product.title} price ${product.price} should be within limits`)
+                    .toBeGreaterThan(lowerLimit);
+                expect
+                    .soft(product.price, `${product.title} price ${product.price} should be within limits`)
+                    .toBeLessThan(upperLimit);
+            } catch (error) {
+                console.error(`Failed to validate product ${index + 1} (${product.url}):`, error);
+                expect
+                    .soft(false, `Unexpected error while validating product ${index + 1}: ${product.title}`)
+                    .toBe(true);
+            }
+        });
     }
     console.log('Statistics:', {
         totalProductsOnPage: totalOnPage,
