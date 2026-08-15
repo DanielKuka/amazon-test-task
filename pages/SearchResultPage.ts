@@ -16,33 +16,80 @@ export class SearchResultPage extends BasePage {
     // Methods
 
     private async isSponsored(card: Locator): Promise<boolean> {
-        const sponsoredLabel = card.getByText('Sponsored', { exact: true });
-        return (await sponsoredLabel.count()) > 0;
+        const sponsoredText = card.getByText('Sponsored', { exact: true });
+        const sponsoredAriaLabel = card.locator('[aria-label*="sponsored" i]');
+
+        return (await sponsoredText.count()) > 0 || (await sponsoredAriaLabel.count()) > 0;
     }
 
-    private async parseProductCard(card: Locator): Promise<Product> {
-        const productTitle = await card.locator('[data-cy="title-recipe"] h2 span').textContent({ timeout: 3000 });
+    private async getRequiredText(locator: Locator, fieldName: string, asin: string): Promise<string> {
+        if ((await locator.count()) === 0) {
+            throw new Error(`Missing ${fieldName} for ASIN ${asin}`);
+        }
 
-        const productPrice = await card
-            .locator('.a-price[data-a-size="xl"][data-a-color="base"] .a-offscreen')
-            .textContent({ timeout: 3000 });
-        const price = parsePrice(productPrice!);
+        const text = await locator.first().textContent({ timeout: 3000 });
+        if (!text?.trim()) {
+            throw new Error(`Empty ${fieldName} for ASIN ${asin}`);
+        }
 
-        const productRating = await card
-            .locator('span[aria-hidden="true"].a-size-small.a-color-base')
-            .textContent({ timeout: 3000 });
-        const rating = parseFloat(productRating!);
+        return text.trim();
+    }
 
-        const productReviews = await card
-            .locator('a[aria-label$="ratings"]')
-            .getAttribute('aria-label', { timeout: 3000 });
-        const reviews = parseFloat(productReviews!.replace(/,/g, ''));
+    private async getRequiredAttribute(
+        locator: Locator,
+        attributeName: string,
+        fieldName: string,
+        asin: string,
+    ): Promise<string> {
+        if ((await locator.count()) === 0) {
+            throw new Error(`Missing ${fieldName} for ASIN ${asin}`);
+        }
 
-        const asin = await card.getAttribute('data-asin', { timeout: 3000 });
+        const value = await locator.first().getAttribute(attributeName, { timeout: 3000 });
+        if (!value?.trim()) {
+            throw new Error(`Empty ${fieldName} for ASIN ${asin}`);
+        }
+
+        return value.trim();
+    }
+
+    private ensureValidNumber(value: number, fieldName: string, asin: string): number {
+        if (!Number.isFinite(value)) {
+            throw new Error(`Invalid ${fieldName} for ASIN ${asin}`);
+        }
+
+        return value;
+    }
+
+    private async parseProductCard(card: Locator, asin: string): Promise<Product> {
+        const productTitle = await this.getRequiredText(card.locator('[data-cy="title-recipe"] h2'), 'title', asin);
+
+        const productPrice = await this.getRequiredText(
+            card.locator('.a-price[data-a-size="xl"][data-a-color="base"] .a-offscreen'),
+            'primary price',
+            asin,
+        );
+        const price = this.ensureValidNumber(parsePrice(productPrice), 'price', asin);
+
+        const productRating = await this.getRequiredAttribute(
+            card.locator('[aria-label*="out of 5 stars" i]'),
+            'aria-label',
+            'rating',
+            asin,
+        );
+        const rating = this.ensureValidNumber(parseFloat(productRating), 'rating', asin);
+
+        const productReviews = await this.getRequiredAttribute(
+            card.locator('a[aria-label$="ratings" i], a[aria-label$="reviews" i]'),
+            'aria-label',
+            'review count',
+            asin,
+        );
+        const reviews = this.ensureValidNumber(parseFloat(productReviews.replace(/,/g, '')), 'review count', asin);
         const url = `${this.baseURL}/dp/${asin}`;
 
         return {
-            title: productTitle!,
+            title: productTitle,
             price,
             rating,
             reviews,
@@ -75,16 +122,21 @@ export class SearchResultPage extends BasePage {
                 continue;
             }
             const asin = await card.getAttribute('data-asin');
-            if (seenAsins.has(asin!)) {
+            if (!asin) {
+                console.error(`Skipped product card at index ${i}: missing ASIN`);
                 continue;
             }
-            seenAsins.add(asin!);
+            if (seenAsins.has(asin)) {
+                continue;
+            }
 
             try {
-                const product = await this.parseProductCard(card);
+                const product = await this.parseProductCard(card, asin);
                 products.push(product);
+                seenAsins.add(asin);
             } catch (error) {
-                console.error(`Failed to parse product card at index ${i}:`, error);
+                const message = error instanceof Error ? error.message : String(error);
+                console.error(`Skipped product card at index ${i} (ASIN ${asin}): ${message}`);
             }
         }
 
@@ -99,14 +151,21 @@ export class SearchResultPage extends BasePage {
     }
 
     private async getTitleAndPrice(card: Locator): Promise<{ title: string; price: number }> {
-        const productTitle = await card.locator('[data-cy="title-recipe"] h2 span').textContent({ timeout: 3000 });
+        const asin = await card.getAttribute('data-asin');
+        if (!asin) {
+            throw new Error('Cannot read product title and price: missing ASIN');
+        }
 
-        const productPrice = await card
-            .locator('.a-price[data-a-size="xl"][data-a-color="base"] .a-offscreen')
-            .textContent({ timeout: 3000 });
-        const price = parsePrice(productPrice!);
+        const productTitle = await this.getRequiredText(card.locator('[data-cy="title-recipe"] h2'), 'title', asin);
 
-        return { title: productTitle!.trim(), price };
+        const productPrice = await this.getRequiredText(
+            card.locator('.a-price[data-a-size="xl"][data-a-color="base"] .a-offscreen'),
+            'primary price',
+            asin,
+        );
+        const price = this.ensureValidNumber(parsePrice(productPrice), 'price', asin);
+
+        return { title: productTitle, price };
     }
 
     async addSecondNotConfigurableProductToCart(): Promise<{ title: string; price: number }> {
