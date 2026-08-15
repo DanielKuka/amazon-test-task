@@ -10,11 +10,21 @@ export async function runSearchScenario(page: Page, query: string) {
 
     console.log('Current URL:', page.url());
     const notPromoted = await site.searchResultPage.getNotPromotedProducts();
+    expect(notPromoted.length, `Expected to collect non-promoted products for the "${query}" search`).toBeGreaterThan(
+        0,
+    );
+
     const { lowerLimit, upperLimit } = calculatePriceLimits(notPromoted);
     console.log('Price limits:', { lowerLimit, upperLimit });
     const totalOnPage = await site.searchResultPage.getTotalProductsCount();
 
     const filteredAndSorts = filterAndSortProducts(notPromoted);
+    expect
+        .soft(
+            filteredAndSorts.length,
+            `Expected at least 10 products matching the rating and review criteria for the "${query}" search`,
+        )
+        .toBeGreaterThanOrEqual(10);
 
     const top10 = filteredAndSorts.slice(0, 10);
     console.log(top10);
