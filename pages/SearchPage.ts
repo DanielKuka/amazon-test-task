@@ -9,16 +9,14 @@ export class SearchPage extends BasePage {
     // Locators
 
     readonly searchInput = this.page.locator('#twotabsearchtextbox');
-    readonly searchSubmitButton = this.page.locator('#nav-search-submit-button');
 
     // Methods
 
     async search(query: string) {
         await this.searchInput.fill(query);
-        // The international-shipping redirect overlay can appear asynchronously,
-        // after goto()'s one-time dismissal already ran - clear it again right
-        // before the click that it's most likely to intercept.
-        await this.removeIfPresent('#redir-modal, #redir-overlay');
-        await this.searchSubmitButton.click({ timeout: 5000 });
+        // Submit from the input instead of clicking the button: Amazon's
+        // country-redirect overlay may reappear asynchronously and intercept
+        // pointer events even after it has just been dismissed.
+        await this.searchInput.press('Enter');
     }
 }
